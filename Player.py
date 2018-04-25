@@ -1,6 +1,7 @@
 from BoardState import BoardState
 from Node import Node
 import random
+import copy
 CUT_OFF_DEPTH_LIMIT = 4
 
 class Player:
@@ -36,7 +37,26 @@ class Player:
         max_val = 0
         operation = operators[0]
         for op in operators:
-            node = Node(self._board, None, 0, self._color, turns)
+            op_board = copy.deepcopy(self._board)
+            if op_board._is_place_phase:
+                row = op[0]
+                col = op[1]
+                self._board.place_piece(self._color, (row, col))
+            else:
+
+                source = op[0]
+                dest = op[1]
+
+                source_row = source[0]
+                source_col = source[1]
+
+                dest_row = dest[0]
+                dest_col = dest[1]
+
+                self._board.move_piece(source_row, source_col, dest_row, dest_col)
+
+            node = Node(op_board, None, 0, self._opponent_color, turns+1)
+
             curr_val = self.minimax_value(node)
             if curr_val >= max_val:
                 max_val = curr_val
@@ -69,6 +89,7 @@ class Player:
         self._board.check_shrink_board(turns)
         if self._is_place_phase:
             coords_list = self._board.get_empty_tiles(self._color)
+            print (coords_list)
             coord = self.minimax_decision(coords_list, turns)
             #coord = coords_list[random.randint(0, len(coords_list) - 1)]
             row = coord[0]
@@ -95,7 +116,7 @@ class Player:
 
             return_val = (source_col, source_row), (dest_col, dest_row)
 
-        self._board.check_update_phase()
+        self._board.check_update_phase(turns)
 
         return return_val
 
@@ -112,5 +133,3 @@ class Player:
         else:
             self._board.remove_piece(self._opponent_color, (action[0][1], action[0][0]))
             self._board.place_piece(self._opponent_color, (action[1][1], action[1][0]))
-
-

@@ -4,7 +4,7 @@ class Node:
     This class of Node contains the information of node in the search tree.
     each node contains board_state, his parent, successors.
     """
-    def __init__(self, board_state, parent, depth, color, is_place_phase, turns):
+    def __init__(self, board_state, parent, depth, color, turns):
         # current state of the board this node represents
         self._board = board_state
 
@@ -25,7 +25,7 @@ class Node:
         return self._color
 
     def get_eval(self):
-        return self._board.get_available_moves(self._color)
+        return len(self._board.get_available_moves(self._color))
 
     def get_board(self):
         return self._board
@@ -43,7 +43,7 @@ class Node:
                 # create copy of current board
                 new_board = copy.deepcopy(self._board)
 
-                new_board.check_shrink_board(self.turns)
+                new_board.check_shrink_board(self._turns)
 
                 # update the copy with the placement
                 new_board.place_piece(self._color, (row, col))
@@ -52,7 +52,7 @@ class Node:
 
                 # update successors with the new board state
                 self._successors.append(Node(new_board, self, self._depth + 1,
-                                             self._board.get_opposite_color(self._color)))
+                self._board.get_opposite_color(self._color),self._turns + 1))
 
         else:
             coords_list = self._board.get_available_moves(self._color)
@@ -69,7 +69,7 @@ class Node:
                 # create copy of current board
                 new_board = copy.deepcopy(self._board)
 
-                new_board.check_shrink_board(self.turns)
+                new_board.check_shrink_board(self._turns)
 
                 # update the copy with the move
                 self._board.move_piece(source_row, source_col, dest_row, dest_col)
@@ -87,5 +87,3 @@ class Node:
 
     def get_move(self):
         return self._move
-
-

@@ -39,7 +39,7 @@ class BoardState:
         if turns == SUM_TURNS_PLACE_PHASE - 1 or turns == SUM_TURNS_PLACE_PHASE - 2:
             self._is_place_phase = False
 
-    def get_is_phase_place(self):
+    def get_is_place_phase(self):
         return self._is_place_phase
 
     def get_opposite_color(self, color):
