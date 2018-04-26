@@ -25,7 +25,13 @@ class Node:
         return self._color
 
     def get_eval(self):
-        return len(self._board.get_available_moves(self._color))
+        if self._color == 'white':
+            return self._board.rank_pieces_loc(self._color) + (len(self._board.get_white_loc()) - len(self._board.get_black_loc()))
+        else:
+            return self._board.rank_pieces_loc(self._color) + (len(self._board.get_black_loc()) - len(self._board.get_white_loc()))
+
+
+
 
     def get_board(self):
         return self._board
@@ -34,16 +40,16 @@ class Node:
         return self._depth
 
     def expand_successors(self):
+        self._board.check_shrink_board(self._turns)
+
         if self._board.get_is_place_phase():
             coords_list = self._board.get_empty_tiles(self._color)
             for coord in coords_list:
-                row = coord[0]
-                col = coord[1]
+                row, col = coord[0], coord[1]
 
                 # create copy of current board
                 new_board = copy.deepcopy(self._board)
 
-                new_board.check_shrink_board(self._turns)
 
                 # update the copy with the placement
                 new_board.place_piece(self._color, (row, col))
@@ -52,27 +58,20 @@ class Node:
 
                 # update successors with the new board state
                 self._successors.append(Node(new_board, self, self._depth + 1,
-                self._board.get_opposite_color(self._color),self._turns + 1))
+                new_board.get_opposite_color(self._color), self._turns + 1))
 
         else:
             coords_list = self._board.get_available_moves(self._color)
             for coord in coords_list:
-                source = coord[0]
-                dest = coord[1]
-
-                source_row = source[0]
-                source_col = source[1]
-
-                dest_row = dest[0]
-                dest_col = dest[1]
+                source, dest = coord[0], coord[1]
+                source_row, source_col, dest_row, dest_col = source[0], source[1], dest[0], dest[1]
 
                 # create copy of current board
                 new_board = copy.deepcopy(self._board)
 
-                new_board.check_shrink_board(self._turns)
 
                 # update the copy with the move
-                self._board.move_piece(self._color, source_row, source_col, dest_row, dest_col)
+                new_board.move_piece(self._color, source_row, source_col, dest_row, dest_col)
 
                 new_board.check_update_phase(self._turns)
 

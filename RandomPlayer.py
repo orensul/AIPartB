@@ -2,7 +2,7 @@ from BoardState import BoardState
 from Node import Node
 import random
 import copy
-CUT_OFF_DEPTH_LIMIT = 2
+CUT_OFF_DEPTH_LIMIT = 3
 
 # a constant
 INFINITY = 1.0e400
@@ -66,7 +66,9 @@ class Player:
     def minimax_value(self, node, depth, is_maximizing_player, alpha, beta):
 
         if self.is_cut_off(node):
-            return node.get_eval()
+            eval = node.get_eval()
+            print("eval " + str(eval))
+            return eval
 
         node.expand_successors()
 
@@ -105,17 +107,17 @@ class Player:
         self._board.check_shrink_board(turns)
         if self._board.get_is_place_phase():
             coords_list = self._board.get_empty_tiles(self._color)
-            coord = self.minimax_decision(coords_list, turns)
-            #coord = coords_list[random.randint(0, len(coords_list) - 1)]
+            #coord = self.minimax_decision(coords_list, turns)
+            coord = coords_list[random.randint(0, len(coords_list) - 1)]
             row, col = coord[0], coord[1]
             self._board.place_piece(self._color, (row, col))
             return_val = col, row
 
         else:
             coords_list = self._board.get_available_moves(self._color)
-            coord = self.minimax_decision(coords_list, turns)
+            #coord = self.minimax_decision(coords_list, turns)
 
-            #coord = coords_list[random.randint(0, len(coords_list) - 1)]
+            coord = coords_list[random.randint(0, len(coords_list) - 1)]
             source, dest = coord[0], coord[1]
             source_row, source_col, dest_row, dest_col = source[0], source[1], dest[0], dest[1]
 

@@ -29,10 +29,41 @@ class BoardState:
                     row_list.append(TileEnum.EMPTY_TILE)
             self._board.append(row_list)
 
+    def get_white_loc(self):
+        return self._white_loc
+
+    def get_black_loc(self):
+        return self._black_loc
+
+    def rank_pieces_loc(self, color):
+        center = (self._board_end - self._board_start) / 2
+        center_start = center - 1
+        center_end = center + 1
+
+
+
+        if color == 'white':
+            list = self._white_loc
+        else:
+            list = self._black_loc
+
+        pieces_in_center = 0
+        for p in list:
+            row, col = p[0], p[1]
+            if row >= center_start and row <= center_end and col >= center_start and col <= center_end:
+                pieces_in_center += 3
+            if row == self._board_start or col == self._board_start or row == self._board_end -1 or \
+                    col == self._board_end - 1:
+                pieces_in_center -= 3
+            if row == self._board_start + 1 or col == self._board_start + 1 or row == self._board_end - 2 or col == self._board_end - 2:
+                pieces_in_center -= 1
+        return pieces_in_center
+
     def check_shrink_board(self, turns):
 
         if turns in (FIRST_BOARD_SHRINK, FIRST_BOARD_SHRINK - 1, SECOND_BOARD_SHRINK,
                      SECOND_BOARD_SHRINK - 1):
+
             self.shrink_board()
 
     def check_update_phase(self, turns):
@@ -140,9 +171,8 @@ class BoardState:
         self._board[self._board_end - 1][self._board_start] = TileEnum.CORNER_TILE
 
         # remove from black_loc and white_loc lists pieces from old board locations
-        print(self._white_loc)
+
         self.remove_pieces_old_board_loc('white')
-        print(self._black_loc)
         self.remove_pieces_old_board_loc('black')
 
     def remove_pieces_old_board_loc(self, color):
