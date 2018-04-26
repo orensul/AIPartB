@@ -2,7 +2,7 @@ from BoardState import BoardState
 from Node import Node
 import random
 import copy
-CUT_OFF_DEPTH_LIMIT = 4
+CUT_OFF_DEPTH_LIMIT = 2
 
 class Player:
     def __init__(self, colour):
@@ -17,7 +17,6 @@ class Player:
         self._color = colour
         self._opponent_color = self.get_opponent_color()
         self._board = BoardState()
-        self._is_place_phase = True
 
     def get_opponent_color(self):
         if self._color == 'white':
@@ -38,10 +37,10 @@ class Player:
         operation = operators[0]
         for op in operators:
             op_board = copy.deepcopy(self._board)
-            if op_board._is_place_phase:
+            if op_board.get_is_place_phase():
                 row = op[0]
                 col = op[1]
-                self._board.place_piece(self._color, (row, col))
+                op_board.place_piece(self._color, (row, col))
             else:
 
                 source = op[0]
@@ -53,7 +52,7 @@ class Player:
                 dest_row = dest[0]
                 dest_col = dest[1]
 
-                self._board.move_piece(source_row, source_col, dest_row, dest_col)
+                op_board.move_piece(self._color, source_row, source_col, dest_row, dest_col)
 
             node = Node(op_board, None, 0, self._opponent_color, turns+1)
 
@@ -69,13 +68,13 @@ class Player:
         :return: evaluation function result
         """
         if self.is_cut_off(node):
-            return node.eval()
+            return node.get_eval()
         elif node.get_color() == self._color:
             node.expand_successors()
-            return max(node.get_eval() for node in node.get_successors())
+            return max(self.minimax_value(node) for node in node.get_successors())
         else:
             node.expand_successors()
-            return min(node.get_eval() for node in node.get_successors())
+            return min(self.minimax_value(node) for node in node.get_successors())
 
     def action(self, turns):
         """
@@ -87,11 +86,11 @@ class Player:
                  ((a,b),(c,d)) -  moving a piece from square (a,b) to square (c,d)
         """
         self._board.check_shrink_board(turns)
-        if self._is_place_phase:
+        if self._board.get_is_place_phase():
             coords_list = self._board.get_empty_tiles(self._color)
             print (coords_list)
-            coord = self.minimax_decision(coords_list, turns)
-            #coord = coords_list[random.randint(0, len(coords_list) - 1)]
+            #coord = self.minimax_decision(coords_list, turns)
+            coord = coords_list[random.randint(0, len(coords_list) - 1)]
             row = coord[0]
             col = coord[1]
             self._board.place_piece(self._color, (row, col))
@@ -99,7 +98,8 @@ class Player:
 
         else:
             coords_list = self._board.get_available_moves(self._color)
-            coord = coords_list[random.randint(0, len(coords_list) - 1)]
+            coord = self.minimax_decision(coords_list, turns)
+            #coord = coords_list[random.randint(0, len(coords_list) - 1)]
             print("coord random")
             print(coord)
 
@@ -112,9 +112,10 @@ class Player:
             dest_row = dest[0]
             dest_col = dest[1]
 
-            self._board.move_piece(source_row, source_col, dest_row, dest_col)
+            self._board.move_piece(self._color, source_row, source_col, dest_row, dest_col)
 
             return_val = (source_col, source_row), (dest_col, dest_row)
+
 
         self._board.check_update_phase(turns)
 

@@ -47,11 +47,11 @@ class BoardState:
             return 'black'
         return 'white'
 
-    def move_piece(self, source_row, source_col, dest_row, dest_col):
+    def move_piece(self, color, source_row, source_col, dest_row, dest_col):
         # remove the piece from his source tile
-        self._board.remove_piece(self._color, (source_row, source_col))
+        self.remove_piece(color, (source_row, source_col))
         # place the piece on his dest tile
-        self._board.place_piece(self._color, (dest_row, dest_col))
+        self.place_piece(color, (dest_row, dest_col))
 
     def place_piece(self, color, coord):
         coord_row = coord[0]

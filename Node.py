@@ -72,12 +72,12 @@ class Node:
                 new_board.check_shrink_board(self._turns)
 
                 # update the copy with the move
-                self._board.move_piece(source_row, source_col, dest_row, dest_col)
+                self._board.move_piece(self._color, source_row, source_col, dest_row, dest_col)
 
                 new_board.check_update_phase(self._turns)
 
                 self._successors.append(Node(new_board, self, self._depth + 1,
-                                             self._board.get_opposite_color(self._color)))
+                                             self._board.get_opposite_color(self._color), self._turns+1))
 
     def get_successors(self):
         return self._successors
