@@ -24,13 +24,11 @@ class Node:
     def get_color(self):
         return self._color
 
-    def get_eval(self):
-        if self._color == 'white':
-            return self._board.rank_pieces_loc(self._color) + (len(self._board.get_white_loc()) - len(self._board.get_black_loc()))
+    def get_eval(self, color):
+        if color == 'white':
+            return self._board.rank_pieces_loc(color) + 10*(len(self._board.get_white_loc()) - len(self._board.get_black_loc()))
         else:
-            return self._board.rank_pieces_loc(self._color) + (len(self._board.get_black_loc()) - len(self._board.get_white_loc()))
-
-
+            return self._board.rank_pieces_loc(color) + 10*(len(self._board.get_black_loc()) - len(self._board.get_white_loc()))
 
 
     def get_board(self):

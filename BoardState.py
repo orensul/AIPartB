@@ -40,8 +40,6 @@ class BoardState:
         center_start = center - 1
         center_end = center + 1
 
-
-
         if color == 'white':
             list = self._white_loc
         else:
@@ -52,12 +50,13 @@ class BoardState:
             row, col = p[0], p[1]
             if row >= center_start and row <= center_end and col >= center_start and col <= center_end:
                 pieces_in_center += 3
-            if row == self._board_start or col == self._board_start or row == self._board_end -1 or \
+            if row == self._board_start or col == self._board_start or row == self._board_end - 1 or \
                     col == self._board_end - 1:
                 pieces_in_center -= 3
             if row == self._board_start + 1 or col == self._board_start + 1 or row == self._board_end - 2 or col == self._board_end - 2:
                 pieces_in_center -= 1
         return pieces_in_center
+
 
     def check_shrink_board(self, turns):
 

@@ -66,8 +66,7 @@ class Player:
     def minimax_value(self, node, depth, is_maximizing_player, alpha, beta):
 
         if self.is_cut_off(node):
-            eval = node.get_eval()
-            print("eval " + str(eval))
+            eval = node.get_eval(self._color)
             return eval
 
         node.expand_successors()

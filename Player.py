@@ -16,7 +16,7 @@ class Player:
         can be 'white' or 'black
         """
 
-        random.seed(9002)
+        #random.seed(9002)
         self._color = colour
         self._opponent_color = self.get_opponent_color()
         self._board = BoardState()
@@ -66,7 +66,7 @@ class Player:
     def minimax_value(self, node, depth, is_maximizing_player, alpha, beta):
 
         if self.is_cut_off(node):
-            return node.get_eval()
+            return node.get_eval(self._color)
 
         node.expand_successors()
 
