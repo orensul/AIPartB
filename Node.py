@@ -21,14 +21,11 @@ class Node:
 
         self._turns = turns
 
+    def get_turns(self):
+        return self._turns
+
     def get_color(self):
         return self._color
-
-    def get_eval(self, color):
-        if color == 'white':
-            return self._board.rank_pieces_loc(color) + 10*(len(self._board.get_white_loc()) - len(self._board.get_black_loc()))
-        else:
-            return self._board.rank_pieces_loc(color) + 10*(len(self._board.get_black_loc()) - len(self._board.get_white_loc()))
 
 
     def get_board(self):
@@ -42,6 +39,7 @@ class Node:
 
         if self._board.get_is_place_phase():
             coords_list = self._board.get_empty_tiles(self._color)
+
             for coord in coords_list:
                 row, col = coord[0], coord[1]
 

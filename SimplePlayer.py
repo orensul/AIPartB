@@ -2,7 +2,7 @@ from BoardState import BoardState
 from Node import Node
 import random
 import copy
-from operator import itemgetter
+
 CUT_OFF_DEPTH_LIMIT = 3
 
 # a constant
@@ -17,28 +17,32 @@ class Player:
         can be 'white' or 'black
         """
 
-        random.seed(9009)
+        #random.seed(9002)
         self._color = colour
         self._opponent_color = self.get_opponent_color()
         self._board = BoardState()
 
+
     def get_place_eval(self, node):
 
         white_eval = len(node.get_board().get_white_loc())
+        #print("white_eval "  + str(white_eval))
         black_eval = len(node.get_board().get_black_loc())
-
+        #print("black_eval "  + str(black_eval))
         if self._color == 'white':
 
-            return node.get_board().rank_pieces_loc(self._color)
+            return 10*(white_eval - black_eval)
         else:
 
-            return node.get_board().rank_pieces_loc(self._color)
+            return 10*(black_eval - white_eval)
 
     def get_eval(self, node):
         if self._color == 'white':
-            return node.get_board().rank_pieces_loc(self._color) + 10*(len(node.get_board().get_white_loc()) - len(node.get_board().get_black_loc()))
+
+            return len(node.get_board().get_white_loc()) - len(node.get_board().get_black_loc())
         else:
-            return node.get_board().rank_pieces_loc(self._color) + 10*(len(node.get_board().get_black_loc()) - len(node.get_board().get_white_loc()))
+
+            return len(node.get_board().get_black_loc()) - len(node.get_board().get_white_loc())
 
 
     def get_opponent_color(self):
@@ -70,7 +74,7 @@ class Player:
     #
     #             op_board.move_piece(self._color, source_row, source_col, dest_row, dest_col)
     #
-    #         node = Node(op_board, None, 1, self._opponent_color, turns+1)
+    #         node = Node(op_board, None, 1, self._opponent_color, turns + 1)
     #
     #         curr_val = self.minimax_value(node)
     #         if curr_val > max_val:
@@ -90,6 +94,7 @@ class Player:
     #         return min(self.minimax_value(node) for node in node.get_successors())
 
     def minimax_decision(self, operators, turns):
+
         operation = operators[0]
         alpha = - INFINITY
         beta = INFINITY
@@ -114,32 +119,19 @@ class Player:
             # if curr_val < beta:
             #     beta = curr_val
 
-
         return operation
 
 
     def minimax_value(self, node, depth, is_maximizing_player, alpha, beta):
+
         if self.is_cut_off(node):
             return self.get_place_eval(node)
 
         node.expand_successors()
 
-        list_maximizing_player = []
-        list_minimizing_player = []
-
-        for n in node.get_successors():
-            tup = (n, self.get_place_eval(n))
-            list_maximizing_player.append(tup)
-            list_minimizing_player.append(tup)
-
-
-
-        sorted(list_minimizing_player, key=itemgetter(1))
-        sorted(list_maximizing_player, key=itemgetter(1), reverse=True)
-
         if is_maximizing_player:
             best_val = - INFINITY
-            for (child, rank) in list_maximizing_player:
+            for child in node.get_successors():
                 value = self.minimax_value(child, depth+1, False, alpha, beta)
                 best_val = max(best_val, value)
                 alpha = max(alpha, best_val)
@@ -148,7 +140,7 @@ class Player:
             return best_val
         else:
             best_val = INFINITY
-            for (child, rank) in list_minimizing_player:
+            for child in node.get_successors():
                 value = self.minimax_value(child, depth+1, True, alpha, beta)
                 best_val = min(best_val, value)
                 beta = min(beta, best_val)

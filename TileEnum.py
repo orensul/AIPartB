@@ -6,4 +6,3 @@ class TileEnum(Enum):
     BLACK_PIECE = 1
     EMPTY_TILE = 2
     CORNER_TILE = 3
-
