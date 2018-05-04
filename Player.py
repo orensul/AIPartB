@@ -21,11 +21,11 @@ class Player:
         if(colour == 'white'):
             self._color = TileEnum.WHITE_PIECE
             self._opponent_color = TileEnum.BLACK_PIECE
-            self._monte_carlo_tree = MC_Node(copy.deepcopy(self._board), None, self._color, 0, None)
+            #self._monte_carlo_tree = MC_Node(copy.deepcopy(self._board), None, self._color, 0, None)
         elif(colour == 'black'):
             self._color = TileEnum.BLACK_PIECE
             self._opponent_color = TileEnum.WHITE_PIECE
-            self._monte_carlo_tree = MC_Node(copy.deepcopy(self._board), None, self._opponent_color, 0, None)
+            #self._monte_carlo_tree = MC_Node(copy.deepcopy(self._board), None, self._opponent_color, 0, None)
 
         self._minimax_cutoff_depth = INITIAL_CUT_OFF_DEPTH_LIMIT
 
