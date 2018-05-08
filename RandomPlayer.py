@@ -1,11 +1,16 @@
 from BoardState import BoardState
 from TileEnum import TileEnum
 from Node import Node
-from MC_Node import MC_Node
 import random
 import copy
 import time
-INITIAL_CUT_OFF_DEPTH_LIMIT = 2
+import math
+
+INFINITY = 100000
+NEG_INFINITY = -100000
+MAX_GAME_TIME = 240  #accounting for other player
+MAX_MOVES = 112 #estimate for maximum moves a this player should make in the game
+GAME_AVERAGE_BRANCHING_FACTOR = 40 # estimate
 
 class Player:
     def __init__(self, colour):
@@ -16,18 +21,16 @@ class Player:
         can be 'white' or 'black
         """
 
-        random.seed(9002)
+        #random.seed(9002)
         self._board = BoardState()
         if(colour == 'white'):
             self._color = TileEnum.WHITE_PIECE
             self._opponent_color = TileEnum.BLACK_PIECE
-           # self._monte_carlo_tree = MC_Node(copy.deepcopy(self._board), None, self._color, 0, None)
         elif(colour == 'black'):
             self._color = TileEnum.BLACK_PIECE
             self._opponent_color = TileEnum.WHITE_PIECE
-            #self._monte_carlo_tree = MC_Node(copy.deepcopy(self._board), None, self._opponent_color, 0, None)
-
-        self._minimax_cutoff_depth = INITIAL_CUT_OFF_DEPTH_LIMIT
+        self._game_start_time = time.time()
+        self._max_time_for_decision = 120/MAX_MOVES
 
     def update(self, action):
         """
@@ -39,8 +42,7 @@ class Player:
         if not action == None:
             action = self.switch_row_column(action)
             self._board.take_action(action, self._opponent_color)
-        #if self._board.get_is_place_phase():
-            #self._monte_carlo_tree = self._monte_carlo_tree.get_child_from_move(action)
+
 
 
     def action(self, turns):
@@ -52,16 +54,12 @@ class Player:
                  (x,y) -  placing a piece on square (x,y)
                  ((a,b),(c,d)) -  moving a piece from square (a,b) to square (c,d)
         """
+        self._max_time_for_decision = (MAX_GAME_TIME - (time.time() - self._game_start_time))/(2*(MAX_MOVES-((turns+1)/2)))   #/2 to account for only this players game time
+        self._board.check_shrink_board(turns)
+
         actions = self._board.get_actions(turns,self._color)
-        if len(actions) > 0:
-            if self._board.get_is_place_phase():
-                action = actions[random.randint(0, len(actions) - 1)]
-                #action = self.minimax_decision(actions, turns)
-            else:
-                #action = self.minimax_decision(actions, turns)
-                action = actions[random.randint(0, len(actions) - 1)]
-
-
+        action = actions[random.randint(0, len(actions) - 1)]
+        if not action == None:
             self._board.take_action(action, self._color)
             self._board.check_update_phase(turns)
             return self.switch_row_column(action)
@@ -81,59 +79,6 @@ class Player:
 
 
 
-    def minimax_decision(self, operators, turns):
-        if len(operators) == 0:
-            return None
-        operation = operators[0]
-        alpha = -10000
-        beta = 10000
-        for op in operators:
-            #print(alpha)
-            #print(beta)
-            #print('-----------------------')
-            op_board = copy.deepcopy(self._board)
-
-            op_board.take_action(op, self._color)
-            op_board.check_update_phase(turns)
-
-            node = Node(op_board, None, 1, self._opponent_color, turns+1)
-
-            curr_val= self.min_value(node,alpha,beta)
-            if curr_val > alpha:
-                alpha = curr_val
-                operation = op
-
-        return operation
-
-    def max_value(self, node,alpha,beta):
-        """
-        :param node: node which represents a state of the board
-        :return: evaluation function result
-        """
-        if self.is_cut_off(node):
-            return node.get_eval(self._color)
-        else:
-            node.expand_successors()
-            for child in node.get_successors():
-                alpha = max([alpha,self.min_value(child,alpha,beta)])
-                if alpha >= beta:
-                    return beta
-            return alpha
-
-    def min_value(self, node,alpha,beta):
-        """
-        :param node: node which represents a state of the board
-        :return: evaluation function result
-        """
-        if self.is_cut_off(node):
-            return node.get_eval(self._color)
-        else:
-            node.expand_successors()
-            for child in node.get_successors():
-                beta = min([beta,self.max_value(child,alpha,beta)])
-                if beta <= alpha:
-                    return alpha
-            return beta
 
     def switch_row_column(self, action):
         if isinstance(action[0], tuple):
