@@ -1,5 +1,6 @@
 
 from TileEnum import TileEnum
+import math
 
 BOARD_INITIAL_END = 7
 TOTAL_TURNS_PLACE_PHASE = 24
@@ -61,17 +62,17 @@ class BoardState:
         available_moves = []
 
         for piece in self._piece_loc[color._value_]:
-            for direction in [(0,-1),(-1,0),(0,1),(1,0)]: #left,right,up,down
+            for direction in [(0,-1),(-1,0),(0,1),(1,0)]: #left,up,right,down
                 adjacent = tuple([loc + dir for loc, dir in zip(piece,direction)])
-                if self.square_free(adjacent, None):
+                if self.square_viable(adjacent, None):
                     available_moves.append((piece,adjacent))
                 else:
                     adjacent = tuple([loc + dir for loc, dir in zip(adjacent,direction)])
-                    if self.square_free(adjacent, None):
+                    if self.square_viable(adjacent, None):
                         available_moves.append((piece,adjacent))
         return available_moves
 
-    def square_free(self, coord, color):   #color may be None in case of checking available moves or a color if checking for surrounded pieces
+    def square_viable(self, coord, color):   #color may be None in case of checking available moves or a color if checking for surrounded pieces
         if color is None:
             return all([x >= self._board_start and x <= self._board_end for x in coord]) and self._board[coord[0]][coord[1]] == TileEnum.EMPTY_TILE
         else:
@@ -97,8 +98,8 @@ class BoardState:
 
     def remove_surrounded_pieces(self, color):
         for row, col in self._piece_loc[color._value_]:
-            if (all([not self.square_free((row,col-1), color),not self.square_free((row,col+1), color)])
-                or all([not self.square_free((row-1,col), color), not self.square_free((row+1,col), color)])):
+            if (all([not self.square_viable((row,col-1), color),not self.square_viable((row,col+1), color)])
+                or all([not self.square_viable((row-1,col), color), not self.square_viable((row+1,col), color)])):
                 self.remove_piece(color, (row,col))
 
     def shrink_board(self):
@@ -127,19 +128,18 @@ class BoardState:
 
         #remove all pieces surrounded by the new corner pieces in a clockwise manner from top left corner
         for piece in self._piece_loc[TileEnum.CORNER_TILE._value_]:
-            for direction in [(0,-1),(-1,0),(0,1),(1,0)]: #left,right,up,down
+            for direction in [(0,-1),(-1,0),(0,1),(1,0)]: #left,up,right,down
                 (row,col) = tuple([loc + dir for loc, dir in zip(piece,direction)])
                 color = self._board[row][col]
                 if color in (TileEnum.WHITE_PIECE, TileEnum.BLACK_PIECE):
-                    if (all([not self.square_free((row,col-1), color),not self.square_free((row,col+1), color)])
-                        or all([not self.square_free((row-1,col), color), not self.square_free((row+1,col), color)])):
+                    if (all([not self.square_viable((row,col-1), color),not self.square_viable((row,col+1), color)])
+                        or all([not self.square_viable((row-1,col), color), not self.square_viable((row+1,col), color)])):
                         self.remove_piece(color, (row,col))
 
 
     def get_is_place_phase(self):
         return self._is_place_phase
 
-    '''Possibly a problem here around board shinking for minimax. Because of how check_shrink_board() works may shrink twice. UPDATED'''
     def check_shrink_board(self, turns):
         if turns in (FIRST_BOARD_SHRINK, FIRST_BOARD_SHRINK + 1):
             if BOARD_INITIAL_END - self._board_end == 0:
@@ -153,17 +153,126 @@ class BoardState:
         if turns == TOTAL_TURNS_PLACE_PHASE - 1 or turns == TOTAL_TURNS_PLACE_PHASE - 2:
             self._is_place_phase = False
 
+
     def get_remaining_pieces(self, color):
         return len(self._piece_loc[color._value_])
 
-    def rank_centre_control(self, color):
-        rating = 0
-        for row, column in self._piece_loc[color._value_]:
-            rating +=  (9.5 - abs(column-BOARD_CENTRE) - abs(row-BOARD_CENTRE))
-        if self.get_remaining_pieces(color) > 0:
-            rating = rating/self.get_remaining_pieces(color)
-        return rating
 
+    def rank_piece_danger(self,piece,color,turn):
+        score = 0
+        '''need to know if the team we are evaluating has the next move or not'''
+        next_to_move = any([turn % 2 == 0 and color == TileEnum.WHITE_PIECE,(not turn % 2 == 0) and color == TileEnum.BLACK_PIECE])
+        sides = [[(0,-1),(0,1)],[(-1,0),(1,0)]]
+        for side in sides:
+            adjacent = []
+            for direction in side:
+                coord = tuple([loc + dir for loc, dir in zip(piece,direction)])
+                if all([x >= self._board_start and x <= self._board_end for x in coord]):
+                    adjacent.append(self._board[coord[0]][coord[1]])
+            if any([TileEnum.CORNER_TILE in adjacent, self.get_opposite_color(color) in adjacent]) and TileEnum.EMPTY_TILE in adjacent:
+                score += 1
+
+        if self._is_place_phase:
+            if next_to_move:
+                return score * 25
+            else:
+                return score * -10
+        else:
+            if next_to_move:
+                return score * 25
+            else:
+                return score * -10
+
+
+
+    def rank_piece_protection(self,piece, color):
+        score = 0
+        for direction in [(0,-1),(0,1),(1,0),(1,0)]: #left,up,right,down
+            adjacent = tuple([loc + dir for loc, dir in zip(piece,direction)])
+            if any([x < self._board_start or x > self._board_end for x in adjacent]) or self._board[adjacent[0]][adjacent[1]] == color:
+                score += 1
+        if score == 0:
+            return -5
+        if score == 1:
+            return 0
+        if score == 2:
+            return 5
+        if score == 3:
+            return 10
+        if score == 4:
+            return 12
+
+
+
+    def rank_piece_loc(self, piece):
+        from_centre = max([abs(piece[0]-BOARD_CENTRE), abs(piece[1]-BOARD_CENTRE)])
+        if self._board_end == BOARD_INITIAL_END:
+            if from_centre == 0.5:
+                return 30
+            if from_centre == 1.5:
+                return 20
+            if from_centre == 2.5:
+                return 15
+            if from_centre == 3.5:
+                return 10
+        elif self._board_end == BOARD_INITIAL_END - 1:
+            if from_centre == 0.5:
+                return 25
+            if from_centre == 1.5:
+                return 15
+            if from_centre == 2.5:
+                return 10
+        elif self._board_end == BOARD_INITIAL_END - 2:
+            if from_centre == 0.5:
+                return 30
+            if from_centre == 1.5:
+                return 10
+
+
+
+    def rank_piece_mobility(self, piece):
+        score = 0
+        for direction in [(0,-1),(-1,0),(0,1),(1,0)]: #left,right,up,down
+            adjacent = tuple([loc + dir for loc, dir in zip(piece,direction)])
+            if self.square_viable(adjacent, None):
+                score += 1
+            else:
+                adjacent = tuple([loc + dir for loc, dir in zip(adjacent,direction)])
+                if self.square_viable(adjacent, None):
+                    score += 1
+        if score == 0:
+            return 0
+        if score == 1:
+            return 2
+        if score == 2:
+            return 3
+        if score == 3:
+            return 4
+        if score == 4:
+            return 6
+
+    def evaluation(self,color,turn):
+        team_score = 0
+        for piece in self._piece_loc[color._value_]:
+            piece_score = self.rank_piece_loc(piece) + self.rank_piece_mobility(piece)
+            piece_score += self.rank_piece_protection(piece, color) + self.rank_piece_danger(piece, color, turn)
+            if self._is_place_phase:
+                piece_score = piece_score/self.ideal_pieces(color,turn)
+            team_score += piece_score
+
+        for piece in self._piece_loc[self.get_opposite_color(color)._value_]:
+            piece_score = self.rank_piece_loc(piece) + self.rank_piece_mobility(piece)
+            piece_score += self.rank_piece_protection(piece, self.get_opposite_color(color)) + self.rank_piece_danger(piece, self.get_opposite_color(color), turn)
+            if self._is_place_phase:
+                piece_score = piece_score/self.ideal_pieces(color,turn)
+            team_score -= piece_score
+        return team_score
+
+    def ideal_pieces(self,color,turn):
+        if color == TileEnum.WHITE_PIECE:
+            return (math.ceil((turn)/2))
+        else:
+            return (math.ceil((turn-1)/2))
 
     def get_opposite_color(self, color):
         if color == TileEnum.WHITE_PIECE:
