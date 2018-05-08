@@ -1,13 +1,17 @@
-# Referee for COMP30024: Artificial Intelligence, 2018
-# Authors: Matt Farrugia and Shreyash Patodia
-# version: v1.0
+"""
+Referee for COMP30024 Artificial Intelligence, 2018
+Authors: Matt Farrugia and Shreyash Patodia
+version: v1.2
+"""
 
+import gc
 import time
 import argparse
 import importlib
 
-VERSION_INFO = """Referee version 1.1 (released Apr 08 2018)
+VERSION_INFO = """Referee version 1.2 (released May 07 2018)
 Plays a basic game of Watch Your Back! between two Player classes
+Allows for resource limiting to simulate performance constraints used in marking
 Run `python referee.py -h` for help and additional usage information
 """
 
@@ -20,17 +24,29 @@ def main():
 
     # initialise the game and players
     game  = _Game()
-    white = _Player(options.white_player, 'white')
-    black = _Player(options.black_player, 'black')
+    try:
+        white = _Player(options.white_player,'white',options.time,options.space)
+        black = _Player(options.black_player,'black',options.time,options.space)
+    except _ResourceLimitException as e:
+        print(f"resource limit exceeded during initialisation:", e)
+        return
 
     # now, play the game!
     player, opponent = white, black # white has first move
     print(game)
+
     while game.playing():
         if options.delay:
             time.sleep(options.delay)
         turns = game.turns
-        action = player.action(turns)
+        try:
+            action = player.action(turns)
+        except _ResourceLimitException as e:
+            # looks like one of the players exceeded their resource limits
+            # during calculation of 'action'---that's the end of this game, then
+            print(f"resource limit exceeded during action():", e)
+            return
+        
         try:
             game.update(action)
         except _InvalidActionException as e:
@@ -38,8 +54,17 @@ def main():
             # print the error message
             print(f"invalid action ({game.loser}):", e)
             break
+        
         print(game)
-        opponent.update(action)
+        
+        try:
+            opponent.update(action)
+        except _ResourceLimitException as e:
+            # looks like one of the players exceeded their resource limits
+            # during calculation of 'update'
+            print(f"resource limit exceeded during update():", e)
+            return
+        
         # other player's turn!
         player, opponent = opponent, player
 
@@ -51,19 +76,24 @@ def main():
 
 # default values (to use if flag is not provided)
 DELAY_DEFAULT = 0
+SPACE_LIMIT_DEFAULT = 0
+TIME_LIMIT_DEFAULT  = 0
 
 # missing values (to use if flag is provided, but with no value)
-DELAY_NOVALUE = 1.0
+DELAY_NOVALUE = 1.0 # seconds
+SPACE_LIMIT_NOVALUE = 100.0 # MB (each)
+TIME_LIMIT_NOVALUE  = 120.0 # seconds (each)
 
 
 class _Options:
     """
     Parse and contain command-line arguments.
-
+    
     --- help message: ---
-    usage: referee.py [-h] [-d [DELAY]] white_module black_module
+    usage: referee.py [-h] [-d [DELAY]] [-s [SPACE_LIMIT]] [-t [TIME_LIMIT]]
+                      white_module black_module
 
-    Plays a basic game of Watch Your Back! between two Player classes
+    Plays a game of Watch Your Back! between two Player classes
 
     positional arguments:
       white_module          full name of module containing White Player class
@@ -73,6 +103,10 @@ class _Options:
       -h, --help            show this help message and exit
       -d [DELAY], --delay [DELAY]
                             how long (float, seconds) to wait between turns
+      -s [SPACE_LIMIT], --space_limit [SPACE_LIMIT]
+                            limit on memory space (float, MB) for each player
+      -t [TIME_LIMIT], --time_limit [TIME_LIMIT]
+                            limit on CPU time (float, seconds) for each player
     ---------------------
     """
     def __init__(self):
@@ -86,14 +120,29 @@ class _Options:
         parser.add_argument('-d', '--delay',
                 type=float, default=DELAY_DEFAULT, nargs="?",
                 help="how long (float, seconds) to wait between turns")
+        parser.add_argument('-s', '--space_limit',
+                type=float, default=SPACE_LIMIT_DEFAULT, nargs="?",
+                help="limit on memory space (float, MB) for each player")
+        parser.add_argument('-t', '--time_limit',
+                type=float, default=TIME_LIMIT_DEFAULT,  nargs="?",
+                help="limit on CPU time (float, seconds) for each player")
 
         args = parser.parse_args()
 
         self.white_player = _load_player(args.white_module)
         self.black_player = _load_player(args.black_module)
-        self.delay = args.delay if args.delay is not None else DELAY_NOVALUE
+        self.delay = _novalue_check(args.delay, DELAY_NOVALUE)
+        self.space = _novalue_check(args.space_limit, SPACE_LIMIT_NOVALUE)
+        self.time  = _novalue_check(args.time_limit, TIME_LIMIT_NOVALUE)
 
-# HELPERS
+# HELPER FUNCTIONS
+
+def _novalue_check(value, default):
+    """
+    Check if a value has been provided (is not None)
+    Return that value if so, or default if not
+    """
+    return value if value is not None else default
 
 def _load_player(modulename, package='.'):
     """
@@ -109,6 +158,120 @@ def _load_player(modulename, package='.'):
 
 # --------------------------------------------------------------------------- #
 
+# PLAYER WRAPPER CLASS
+
+class _Player:
+    """
+    Wrapper for a Player class to simplify initialization and resource limiting
+    """
+    def __init__(self, player_class, colour, time_limit, space_limit):
+        self.timer = _CountdownTimer(time_limit)
+        self.space_limit = space_limit
+
+        gc.collect() # off the clock
+        with self.timer:
+            self.player = player_class(colour)
+        _space_check(self.space_limit)
+
+    def update(self, move):
+        gc.collect()
+        with self.timer:
+            self.player.update(move)
+        _space_check(self.space_limit)
+
+    def action(self, turns):
+        gc.collect()
+        with self.timer:
+            action = self.player.action(turns)
+        _space_check(self.space_limit)
+        return action
+
+# HELPER CLASSES AND FUNCTIONS
+
+class _ResourceLimitException(Exception):
+    """For when a player or both players exceed specified space / time limits"""
+
+# MEMORY MANAGEMENT
+
+def _get_space_usage():
+    """
+    Find the current and peak Virtual Memory usage of the current process, in MB
+    """
+    # on linux, we can find the memory usage of our program we are looking for 
+    # inside /proc/self/status (specifically, fields VmSize and VmPeak)
+    with open("/proc/self/status") as proc_status:
+        for line in proc_status:
+            if 'VmSize:' in line:
+                curr_mem_usage = int(line.split()[1]) / 1024 # kB -> MB
+            elif 'VmPeak:' in line:
+                peak_mem_usage = int(line.split()[1]) / 1024 # kB -> MB
+    return curr_mem_usage, peak_mem_usage
+
+# by default, the python interpreter uses a significant amount of space
+# measure this first to later subtract from all measurements
+try:
+    _DEFAULT_MEM_USAGE, _ = _get_space_usage()
+except:
+    print("note: unable to measure memory usage on this platform (try dimefox)")
+
+def _space_check(limit):
+    """
+    Check up on the current and peak space usage of the process, printing
+    stats and ensuring that peak usage is not exceeding limits
+    """
+    try:
+        curr_mem_usage, peak_mem_usage = _get_space_usage()
+    except:
+        print("unable to measure memory usage on this platform")
+        return
+    
+    # adjust measurements to reflect usage of players and referee, not
+    # the Python interpreter itself
+    curr_mem_usage -= _DEFAULT_MEM_USAGE
+    peak_mem_usage -= _DEFAULT_MEM_USAGE
+
+    print(f"space: {curr_mem_usage:.3f}MB (current usage) "
+        + f"{peak_mem_usage:.3f}MB (max usage) (both players)")
+    
+    # if we are limited, let's hope we are not out of space!
+    # double the limit because space usage is shared
+    if limit and peak_mem_usage > 2 * limit:
+        raise _ResourceLimitException("Players exceeded shared space limit")
+
+# TIME MANAGEMENT
+
+class _CountdownTimer:
+    """
+    Reusable context manager for timing specific sections of code
+
+    * measures CPU time, not wall-clock time
+    * if limit is not 0, throws an exception upon exiting the context after the 
+      allocated time has passed
+    """
+    def __init__(self, limit):
+        """
+        Create a new countdown timer with time limit `limit`, in seconds
+        (0 for unlimited time)
+        """
+        self.limit = limit
+        self.clock = 0
+    def __enter__(self):
+        # start timing
+        self.start = time.process_time()
+        return self # unused
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # accumulate elapsed time since __enter__
+        elapsed = time.process_time() - self.start
+        self.clock += elapsed
+        print(f"time: {elapsed:.3f}s (this turn), {self.clock:.3f}s (total)")
+
+        # if we are limited, let's hope we aren't out of time!
+        if self.limit and self.clock > self.limit:
+            raise _ResourceLimitException("Player exceeded available time")
+
+
+# --------------------------------------------------------------------------- #
+
 # REFEREE'S INTERNAL GAME STATE REPRESENTATION
 
 #                        NOT INTENDED FOR STUDENT USE
@@ -119,6 +282,9 @@ def _load_player(modulename, package='.'):
 # You should design and use your own representation of the game and board
 # state, optimised with your specific usage in mind: deciding which action to
 # to choose each turn.
+
+class _InvalidActionException(Exception):
+    """For when an action breaks the rules of the game"""
 
 class _Game:
     """Represent the state of a game of Watch Your Back!"""
@@ -490,23 +656,6 @@ class _Game:
             if self.board[ya][min(xa, xb) + 1] in self.pieces:
                 return True
         return False
-
-# --------------------------------------------------------------------------- #
-
-# HELPER CLASSES
-
-class _Player:
-    """Wrapper for a Player class to simplify initialization"""
-    def __init__(self, player_class, colour):
-        self.player = player_class(colour)
-    def update(self, move):
-        self.player.update(move)
-    def action(self, turns):
-        action = self.player.action(turns)
-        return action
-
-class _InvalidActionException(Exception):
-    """For when an action breaks the rules of the game"""
 
 # --------------------------------------------------------------------------- #
 
