@@ -5,7 +5,7 @@ from Node import Node
 import copy
 import time
 import math
-
+from heapq import heappush, heappop
 '''
 Player class controller class for an adversarial search AI designed to compete against
 other similar programs in a game of 'Watch Your Back' through the referee.py class. The overall
@@ -47,6 +47,8 @@ class Player:
 
         self._game_start_time = time.time()
         self._max_time_for_decision = MAX_GAME_TIME/MAX_MOVES
+        self._last_move = None
+        self._move_loop_count = 0
 
     def update(self, action):
         """
@@ -72,7 +74,6 @@ class Player:
                  (x,y) -  placing a piece on square (x,y)
                  ((a,b),(c,d)) -  moving a piece from square (a,b) to square (c,d)
         """
-
         '''Determine from how much time has passed of the total allowed and the number of likely moves
         the player has left to make, how much time we should allocate to the next decision.'''
         self._max_time_for_decision = (MAX_GAME_TIME - (time.time() - self._game_start_time))/((MAX_MOVES-((turns+1)/2)))   #/2 to account for only this players game time
@@ -80,7 +81,8 @@ class Player:
         self._board.check_shrink_board(turns)
 
         action = self.minimax_decision(turns,time.time())
-
+        if isinstance(action[0], tuple):
+            self._last_move = self.switch_row_column(action)
         if not action == None:
             '''update board with action and return action in (col,row) format the referee prefers'''
             self._board.take_action(action, self._color)
@@ -118,13 +120,26 @@ class Player:
             else:
                 begin = time.time()
                 #print(time.time()-start_time)
-                (alpha,best_action) = root.min_max_value(depth, self._color)
+                alpha = root.min_max_value(depth, self._color)
                 last_iteration_time = time.time() - begin
-                #print('DEPTH: ' + str(depth))
-                #print('ALPHA: ' + str(alpha))
-                #print('ACTION: ' + str(best_action))
+                root_successors = copy.deepcopy(root.get_successors())
+                best_action = heappop(root_successors)[1].get_action()
+                if isinstance(best_action[0], tuple):
+                    if self.reverse_move(best_action) == self._last_move:
+                        self._move_loop_count += 1
+                        if self._move_loop_count > 2:
+                            '''We are probably in a loop choose next action in queue'''
+                            print('Hit a move loop.............................................................................')
+                            best_action = heappop(root_successors)[1].get_action()
+                            self._move_loop_count = 0
+                    else:
+                        self._move_loop_count = 0
+
+                '''print('DEPTH: ' + str(depth))
+                print('ALPHA: ' + str(alpha))
+                print('ACTION: ' + str(best_action))'''
                 root.set_alpha_beta(NEG_INFINITY,INFINITY)
-                #print('Time spent on decision so far: ' +str(time.time()-start_time))
+                '''print('Time spent on decision so far: ' +str(time.time()-start_time))'''
         return best_action
 
 
@@ -137,7 +152,12 @@ class Player:
         :param action: representation of the opponent’s recent action tuple for placing, tuple of tuples for moving
         :return:the action of the player in the reversed format
         """
+        if action == None:
+            return None
         if isinstance(action[0], tuple):
             return (action[0][::-1],action[1][::-1])
         else:
             return action[::-1]
+
+    def reverse_move(self, move):
+        return (move[1],move[0])
