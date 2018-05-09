@@ -134,6 +134,7 @@ class BoardState:
                 if color in (TileEnum.WHITE_PIECE, TileEnum.BLACK_PIECE):
                     if (all([not self.square_viable((row,col-1), color),not self.square_viable((row,col+1), color)])
                         or all([not self.square_viable((row-1,col), color), not self.square_viable((row+1,col), color)])):
+                        print('removed piece:' + str((row,col)))
                         self.remove_piece(color, (row,col))
 
 
@@ -158,10 +159,21 @@ class BoardState:
         return len(self._piece_loc[color._value_])
 
 
-    def rank_piece_danger(self,piece,color,turn):
-        score = 0
+    def rank_piece_threats(self,piece,color,turn):
+        threats_made = 0
+        threats_recieved = 0
         '''need to know if the team we are evaluating has the next move or not'''
         next_to_move = any([turn % 2 == 0 and color == TileEnum.WHITE_PIECE,(not turn % 2 == 0) and color == TileEnum.BLACK_PIECE])
+
+        for direction in [(0,-1),(-1,0),(0,1),(1,0)]: #left,up,right,down
+            (row,col) = tuple([loc + dir for loc, dir in zip(piece,direction)])
+            if all([x >= self._board_start and x <= self._board_end for x in (row,col)]):
+                if self._board[row][col] == self.get_opposite_color(color):
+                    (row,col) = tuple([loc + dir for loc, dir in zip((row,col),direction)])
+                    if all([x >= self._board_start and x <= self._board_end for x in (row,col)]):
+                        if self._board[row][col] == TileEnum.EMPTY_TILE:
+                            threats_made +=1
+
         sides = [[(0,-1),(0,1)],[(-1,0),(1,0)]]
         for side in sides:
             adjacent = []
@@ -169,64 +181,52 @@ class BoardState:
                 coord = tuple([loc + dir for loc, dir in zip(piece,direction)])
                 if all([x >= self._board_start and x <= self._board_end for x in coord]):
                     adjacent.append(self._board[coord[0]][coord[1]])
-            if any([TileEnum.CORNER_TILE in adjacent, self.get_opposite_color(color) in adjacent]) and TileEnum.EMPTY_TILE in adjacent:
-                score += 1
+            if all([TileEnum.EMPTY_TILE in adjacent, self.get_opposite_color(color) in adjacent]):
+                threats_recieved += 1
 
-        if self._is_place_phase:
-            if next_to_move:
-                return score * 25
-            else:
-                return score * -10
+        if next_to_move:
+            return 5 * (threats_made-threats_recieved)
         else:
-            if next_to_move:
-                return score * 25
-            else:
-                return score * -10
+            return 5 * (threats_made-threats_recieved)
 
 
-
-    def rank_piece_protection(self,piece, color):
+    def rank_piece_exposure(self, piece, color):
         score = 0
-        for direction in [(0,-1),(0,1),(1,0),(1,0)]: #left,up,right,down
-            adjacent = tuple([loc + dir for loc, dir in zip(piece,direction)])
-            if any([x < self._board_start or x > self._board_end for x in adjacent]) or self._board[adjacent[0]][adjacent[1]] == color:
+        sides = [[(0,-1),(0,1)],[(-1,0),(1,0)]]
+        for side in sides:
+            adjacent = []
+            for direction in side:
+                coord = tuple([loc + dir for loc, dir in zip(piece,direction)])
+                if all([x >= self._board_start and x <= self._board_end for x in coord]):
+                    adjacent.append(self._board[coord[0]][coord[1]])
+            if not color in adjacent:
                 score += 1
-        if score == 0:
-            return -5
-        if score == 1:
-            return 0
-        if score == 2:
-            return 5
-        if score == 3:
-            return 10
-        if score == 4:
-            return 12
-
+        return -2 * score
 
 
     def rank_piece_loc(self, piece):
         from_centre = max([abs(piece[0]-BOARD_CENTRE), abs(piece[1]-BOARD_CENTRE)])
         if self._board_end == BOARD_INITIAL_END:
             if from_centre == 0.5:
-                return 30
+                return 50
             if from_centre == 1.5:
-                return 20
+                return 40
             if from_centre == 2.5:
-                return 15
+                return 30
             if from_centre == 3.5:
-                return 10
+                return 25
         elif self._board_end == BOARD_INITIAL_END - 1:
             if from_centre == 0.5:
-                return 25
+                return 50
             if from_centre == 1.5:
-                return 15
+                return 40
             if from_centre == 2.5:
-                return 10
+                return 25
         elif self._board_end == BOARD_INITIAL_END - 2:
             if from_centre == 0.5:
-                return 30
+                return 50
             if from_centre == 1.5:
-                return 10
+                return 45
 
 
 
@@ -243,28 +243,28 @@ class BoardState:
         if score == 0:
             return 0
         if score == 1:
-            return 2
+            return 5
         if score == 2:
-            return 3
+            return 10
         if score == 3:
-            return 4
+            return 13
         if score == 4:
-            return 6
+            return 15
 
     def evaluation(self,color,turn):
         team_score = 0
         for piece in self._piece_loc[color._value_]:
             piece_score = self.rank_piece_loc(piece) + self.rank_piece_mobility(piece)
-            piece_score += self.rank_piece_protection(piece, color) + self.rank_piece_danger(piece, color, turn)
+            piece_score += self.rank_piece_exposure(piece, color) + self.rank_piece_threats(piece, color, turn)
             if self._is_place_phase:
                 piece_score = piece_score/self.ideal_pieces(color,turn)
             team_score += piece_score
 
         for piece in self._piece_loc[self.get_opposite_color(color)._value_]:
             piece_score = self.rank_piece_loc(piece) + self.rank_piece_mobility(piece)
-            piece_score += self.rank_piece_protection(piece, self.get_opposite_color(color)) + self.rank_piece_danger(piece, self.get_opposite_color(color), turn)
+            piece_score += self.rank_piece_exposure(piece, self.get_opposite_color(color)) + self.rank_piece_threats(piece, self.get_opposite_color(color), turn)
             if self._is_place_phase:
-                piece_score = piece_score/self.ideal_pieces(color,turn)
+                piece_score = piece_score/self.ideal_pieces(self.get_opposite_color(color),turn)
             team_score -= piece_score
         return team_score
 
