@@ -134,7 +134,6 @@ class BoardState:
                 if color in (TileEnum.WHITE_PIECE, TileEnum.BLACK_PIECE):
                     if (all([not self.square_viable((row,col-1), color),not self.square_viable((row,col+1), color)])
                         or all([not self.square_viable((row-1,col), color), not self.square_viable((row+1,col), color)])):
-                        print('removed piece:' + str((row,col)))
                         self.remove_piece(color, (row,col))
 
 
@@ -183,11 +182,13 @@ class BoardState:
                     adjacent.append(self._board[coord[0]][coord[1]])
             if all([TileEnum.EMPTY_TILE in adjacent, self.get_opposite_color(color) in adjacent]):
                 threats_recieved += 1
+        if threats_recieved > 1 and next_to_move:
+            threats_recieved -= 1
+        elif threats_made > 1 and not next_to_move:
+            threats_made -= 1
 
-        if next_to_move:
-            return 5 * (threats_made-threats_recieved)
-        else:
-            return 5 * (threats_made-threats_recieved)
+        return 10 * (threats_made-(threats_recieved))
+
 
 
     def rank_piece_exposure(self, piece, color):
@@ -201,32 +202,32 @@ class BoardState:
                     adjacent.append(self._board[coord[0]][coord[1]])
             if not color in adjacent:
                 score += 1
-        return -2 * score
+        return -5 * score
 
 
     def rank_piece_loc(self, piece):
         from_centre = max([abs(piece[0]-BOARD_CENTRE), abs(piece[1]-BOARD_CENTRE)])
         if self._board_end == BOARD_INITIAL_END:
             if from_centre == 0.5:
-                return 50
+                return 100
             if from_centre == 1.5:
-                return 40
+                return 80
             if from_centre == 2.5:
-                return 30
+                return 60
             if from_centre == 3.5:
-                return 25
+                return 50
         elif self._board_end == BOARD_INITIAL_END - 1:
             if from_centre == 0.5:
-                return 50
+                return 100
             if from_centre == 1.5:
-                return 40
+                return 80
             if from_centre == 2.5:
-                return 25
+                return 70
         elif self._board_end == BOARD_INITIAL_END - 2:
             if from_centre == 0.5:
-                return 50
+                return 100
             if from_centre == 1.5:
-                return 45
+                return 90
 
 
 
@@ -243,13 +244,13 @@ class BoardState:
         if score == 0:
             return 0
         if score == 1:
-            return 5
+            return 3
         if score == 2:
-            return 10
+            return 5
         if score == 3:
-            return 13
+            return 6
         if score == 4:
-            return 15
+            return 8
 
     def evaluation(self,color,turn):
         team_score = 0
