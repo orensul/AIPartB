@@ -21,10 +21,10 @@ INFINITY = 100000
 NEG_INFINITY = -100000
 '''in sec accounting for other player'''
 MAX_GAME_TIME = 240
-'''estimate for maximum moves a this player should make in the game. ~12 in placing ~100 max in moving'''
-MAX_MOVES = 112
-'''estimate of games average branching factor. Allows prediction of how long the next alpha-beta depth iteration will take'''
-GAME_AVERAGE_BRANCHING_FACTOR = 40
+'''estimate for maximum moves a this player should make in the game to win.'''
+INITIAL_TARGET_WIN_TURN = 223
+'''~ number of actions available for players first move'''
+GAME_INITIAL_BRANCHING_FACTOR = 46
 
 class Player:
     def __init__(self, colour):
@@ -34,7 +34,7 @@ class Player:
         :param colour:  string representing the piece colour this class will control for this game.
         can be 'white' or 'black'
         """
-        #random.seed(9002)
+
         '''blank 8x8 board with corners'''
         self._board = BoardState()
         '''Using the TileEnum instead of the string for color allows us to avoid switching in BoardState Class'''
@@ -45,8 +45,18 @@ class Player:
             self._color = TileEnum.BLACK_PIECE
             self._opponent_color = TileEnum.WHITE_PIECE
 
+        '''Take a measurement of when the game started for later allocations of time for decisions'''
         self._game_start_time = time.time()
-        self._max_time_for_decision = MAX_GAME_TIME/MAX_MOVES
+        '''By predicting how many moves we will take to win we can allow for better allocation of time
+        to each decision'''
+        self._target_win_turn = INITIAL_TARGET_WIN_TURN
+        self._max_time_for_decision = MAX_GAME_TIME/self._target_win_turn
+        '''estimate of games average branching factor. Allows prediction of how long
+            the next alpha-beta depth iteration will take'''
+        self._turn_branching_factor = GAME_INITIAL_BRANCHING_FACTOR
+
+        '''Save the last action taken in the move phase to allow for avoiding becoming
+        trapped in length 2 loops of moves'''
         self._last_move = None
         self._move_loop_count = 0
 
@@ -75,19 +85,21 @@ class Player:
                  ((a,b),(c,d)) -  moving a piece from square (a,b) to square (c,d)
         """
         '''Determine from how much time has passed of the total allowed and the number of likely moves
-        the player has left to make, how much time we should allocate to the next decision.'''
-        self._max_time_for_decision = (MAX_GAME_TIME - (time.time() - self._game_start_time))/((MAX_MOVES-((turns+1)/2)))   #/2 to account for only this players game time
+        the player has left to make, how much time we should allocate to the next decision.
+        assumes the other player is working in the time constraints as well'''
+        self._max_time_for_decision = (MAX_GAME_TIME - (time.time() - self._game_start_time))/((self._target_win_turn-turns))   #/2 to account for only this players game time
         '''Check if the internal board should be shrunk on this turn'''
         self._board.check_shrink_board(turns)
 
         action = self.minimax_decision(turns,time.time())
         if isinstance(action[0], tuple):
-            self._last_move = self.switch_row_column(action)
+            self._last_move = action
         if not action == None:
             '''update board with action and return action in (col,row) format the referee prefers'''
             self._board.take_action(action, self._color)
             '''update internal board representation to the move phase if appropriate'''
             self._board.check_update_phase(turns)
+
             return self.switch_row_column(action)
         else:
             self._board.check_update_phase(turns)
@@ -112,34 +124,34 @@ class Player:
         """
         root = Node(copy.deepcopy(self._board), self._color, 0, turns, None, NEG_INFINITY, INFINITY)
         last_iteration_time = 0
+        print('Time we are allowing for this decision' + str(self._max_time_for_decision))
         for depth in range(1,8):
-            #print(self._max_time_for_decision)
-
-            if (self._max_time_for_decision - (time.time()-start_time)) < math.sqrt(GAME_AVERAGE_BRANCHING_FACTOR) * last_iteration_time:
+            if (self._max_time_for_decision - (time.time()-start_time)) < (math.sqrt(self._turn_branching_factor)/2) * last_iteration_time:
                 pass
             else:
                 begin = time.time()
-                #print(time.time()-start_time)
                 alpha = root.min_max_value(depth, self._color)
                 last_iteration_time = time.time() - begin
                 root_successors = copy.deepcopy(root.get_successors())
+                self._turn_branching_factor = len(root_successors)
                 best_action = heappop(root_successors)[1].get_action()
-                if isinstance(best_action[0], tuple):
-                    if self.reverse_move(best_action) == self._last_move:
-                        self._move_loop_count += 1
-                        if self._move_loop_count > 2:
-                            '''We are probably in a loop choose next action in queue'''
-                            print('Hit a move loop.............................................................................')
-                            best_action = heappop(root_successors)[1].get_action()
-                            self._move_loop_count = 0
-                    else:
-                        self._move_loop_count = 0
-
-                '''print('DEPTH: ' + str(depth))
+                print('DEPTH: ' + str(depth))
                 print('ALPHA: ' + str(alpha))
-                print('ACTION: ' + str(best_action))'''
+                print('ACTION: ' + str(best_action))
                 root.set_alpha_beta(NEG_INFINITY,INFINITY)
-                '''print('Time spent on decision so far: ' +str(time.time()-start_time))'''
+                print('Time spent on decision so far: ' +str(time.time()-start_time))
+
+        if isinstance(best_action[0], tuple):
+            if self.reverse_move(best_action) == self._last_move:
+                print('reversed last move')
+                self._move_loop_count += 1
+                if self._move_loop_count > 2:
+                    '''We are probably in a loop choose next action in queue'''
+                    print('Hit a move loop.............................................................................')
+                    best_action = heappop(root_successors)[1].get_action()
+                    self._move_loop_count = 0
+            else:
+                self._move_loop_count = 0
         return best_action
 
 
