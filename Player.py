@@ -22,7 +22,7 @@ NEG_INFINITY = -100000
 '''in sec accounting for other player'''
 MAX_GAME_TIME = 240
 '''estimate for maximum moves a this player should make in the game to win.'''
-INITIAL_TARGET_WIN_TURN = 223
+INITIAL_TARGET_WIN_TURN = 213
 '''~ number of actions available for players first move'''
 GAME_INITIAL_BRANCHING_FACTOR = 46
 
@@ -122,23 +122,22 @@ class Player:
                  (x,y) -  placing a piece on square (x,y)
                  ((a,b),(c,d)) -  moving a piece from square (a,b) to square (c,d)
         """
-        root = Node(copy.deepcopy(self._board), self._color, 0, turns, None, NEG_INFINITY, INFINITY)
+        root = Node(copy.deepcopy(self._board), self._color, 0, turns, None)
         last_iteration_time = 0
-        print('Time we are allowing for this decision' + str(self._max_time_for_decision))
+        print('Time we are allowing for this decision: ' + str(self._max_time_for_decision))
         for depth in range(1,8):
             if (self._max_time_for_decision - (time.time()-start_time)) < (math.sqrt(self._turn_branching_factor)/2) * last_iteration_time:
                 pass
             else:
                 begin = time.time()
-                alpha = root.min_max_value(depth, self._color)
+                root_alpha = root.min_max_value(depth, self._color,NEG_INFINITY, INFINITY)
                 last_iteration_time = time.time() - begin
                 root_successors = copy.deepcopy(root.get_successors())
                 self._turn_branching_factor = len(root_successors)
                 best_action = heappop(root_successors)[1].get_action()
                 print('DEPTH: ' + str(depth))
-                print('ALPHA: ' + str(alpha))
+                print('ALPHA: ' + str(root_alpha))
                 print('ACTION: ' + str(best_action))
-                root.set_alpha_beta(NEG_INFINITY,INFINITY)
                 print('Time spent on decision so far: ' +str(time.time()-start_time))
 
         if isinstance(best_action[0], tuple):
