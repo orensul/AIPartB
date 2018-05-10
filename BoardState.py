@@ -163,7 +163,6 @@ class BoardState:
         threats_recieved = 0
         '''need to know if the team we are evaluating has the next move or not'''
         next_to_move = any([turn % 2 == 0 and color == TileEnum.WHITE_PIECE,(not turn % 2 == 0) and color == TileEnum.BLACK_PIECE])
-
         for direction in [(0,-1),(-1,0),(0,1),(1,0)]: #left,up,right,down
             (row,col) = tuple([loc + dir for loc, dir in zip(piece,direction)])
             if all([x >= self._board_start and x <= self._board_end for x in (row,col)]):
@@ -182,6 +181,11 @@ class BoardState:
                     adjacent.append(self._board[coord[0]][coord[1]])
             if all([TileEnum.EMPTY_TILE in adjacent, self.get_opposite_color(color) in adjacent]):
                 threats_recieved += 1
+
+
+        '''print(str(color)+' is next to move: '+ str(next_to_move) + ' on turn ' + str(turn))
+        print('threats recieved by: ' + str(color) + ': ' + str(threats_recieved))
+        print('threats made by: ' + str(color) + ': ' + str(threats_made))'''
         if threats_recieved > 1 and next_to_move:
             threats_recieved -= 1
         elif threats_made > 1 and not next_to_move:
