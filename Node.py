@@ -80,7 +80,13 @@ class Node:
 
             if self._color == eval_color:
                 expanded_count = 0
-                late_move_reduction_cutoff = math.floor(len(self._successors)/((cutoff_depth - self._depth)))
+
+                if cutoff_depth == 1:
+                    '''always check all nodes on first interation'''
+                    late_move_reduction_cutoff = len(self._successors)
+                else:
+                    late_move_reduction_cutoff = math.ceil(len(self._successors)/(1.5*(cutoff_depth - self._depth)))
+
                 while not self._successors == []:
                     child = heappop(self._successors)[1]
                     score = child.min_max_value(cutoff_depth, eval_color)
@@ -100,7 +106,7 @@ class Node:
                         self._alpha = score
 
                     expanded_count +=1
-                    if expanded_count >= late_move_reduction_cutoff:
+                    if expanded_count > late_move_reduction_cutoff:
                         while not self._successors == []:
                             heappush(successors_update,heappop(self._successors))
                         break
@@ -109,7 +115,7 @@ class Node:
 
             else:
                 expanded_count = 0
-                late_move_reduction_cutoff = math.floor(len(self._successors)/((cutoff_depth - self._depth)))
+                late_move_reduction_cutoff = math.ceil(len(self._successors)/(1.5*(cutoff_depth - self._depth)))
                 while not self._successors == []:
                     child = heappop(self._successors)[1]
                     score = child.min_max_value(cutoff_depth, eval_color)
@@ -127,7 +133,7 @@ class Node:
                         self._beta = score
 
                     expanded_count +=1
-                    if expanded_count >= late_move_reduction_cutoff:
+                    if expanded_count > late_move_reduction_cutoff:
                         while not self._successors == []:
                             heappush(successors_update,heappop(self._successors))
                         break
