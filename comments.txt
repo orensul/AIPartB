@@ -1,0 +1,71 @@
+Comments about the strategies and mechanisms of out program.
+@ authors: Tasrael,  Last updated May 2018
+
+Our program implements a number of strategies to improve it's performance above that of the basic implementation of
+MiniMax with Alpha-Beta pruning. Most of these strategies focus on increasing the speed of the MiniMax algorithm allowing
+for a higher viable depth while minimizing the losses we get in the game performance of the program (i.e. faster but not
+at the cost of highly sub-optimal decisions).
+
+                                                          Program_Features:
+
+Evaluation_Function:
+The evaluation function of the program takes 5 aspects of the current board state into account. It is computed by giving scores
+for every piece of each team and aggregating these scores for the overall evaluation for a single team. By assigning scores piece-
+wise the function implicitly scores based on the differences in piece numbers for each team. This could produce problems in the
+placement phase as natural differences in team piece numbers occur that are not controlable through the decision making process
+which are accounted for by normalizing the scores in the placement phase by the ideal number of pieces a team could have on the
+board on the specific turn.
+
+As well as team-piece-numbers, the evaluation function gives the highest weight towards pieces being close to the centre. A piece
+being closer to the centre not only increases it's chances of being protected by it's fellow pieces but also reduces it's chances
+of being removes when the board shrinks. Centre control is the main aspect of the evaluation function.
+
+The Evaluation function also reduces score for every side (up-down,left-right) of a piece that is exposed i.e. does not have a
+friendly piece or the edge of the board protecting it. The program tries to keep it's pieces as connected to other friendly pieces
+as possible.
+
+The smallest factor of the evaluation function is the piece mobility (i.e. how many available moves the piece has).
+By including this as a factor we try to push the program towards keeping it's pieces connected and protecting each other without
+trapping itself into positions it might want to escape from.
+
+Finally the evaluation function takes into account the number of active 'threats' the piece is making to enemy pieces (i.e. next
+to an enemy piece that isn't protected) vs the number of threats it is recieving. By doing this we push the program towards moving
+into positions where it is attacking the enemy without putting itself under threat. Additionally, we account for which team is next
+to move which prevents a non-representative evaluation function at the leaf of the MiniMax tree where it cannot see ahead to see a
+piece be taken.
+
+Basic_Loop_Avoidance:
+Our AI is able to detect when it enters a move loop (only of length two) and exit said loop by taking the second best calculated option
+rather than the most. Becoming stuck in loops with other AI players seems to be an easy problem to fall into resulting in games being
+decided by the 193 turn shrink/chance.
+
+Iterative_Deepening:
+Our Minimax algorithm is implemented in an iterative deepening fashion. Every move it first performs a minimax search of depth 1, before
+undertaking one of depth 2 etc. By using the results of each iteration to optimize the order of the expanded children in the next, this
+strategy actually allows for faster results than say an immediate unordered search of depth 3 or 4. It also allows us to implement the
+time related features of the program we have implemented as if we do not have the time left to undertake the next iteration we can simply
+use the result of the previous which may be sub-optimal but allows the program to keep within the 120sec time allowance.
+
+
+
+Late_Move_Reduction:
+On top of the iterative deepening. On iterations of depth > 1, we take advantage of having pre-sorted successors and pre-emptively prune
+nodes that are late in the order of succession at levels of the tree not the leaf nodes. The reasoning behind this is that it is unlikely
+that the very worst moves at depth 1 lead to the very best moves of depth 2. It is much more likely that nodes at the beginning to middle
+of the order lead to these moves and the time-savings of a certain level of this extra pruning is worth the small chance of missing the
+most optimal move.
+
+
+Time_Allocation:
+As stated above the iterative deepening allows for us to cut off our decision at a particular time point and simply take the lastest iteration
+result. We therefore estimate an allowance of time for each decision such that the program will fit within the 120sec time constraint.
+This time allowance is given by the amount of time we have left to fit under the constraint divided by the number of moves we predict we can
+win in. This prediction of number of moves starts off as very high but as we enter the move stage it reduces or increases depending on the balance
+of friendly-enemy pieces i.e. if we are winning we allocate more time as we are likely to still fit under the time constraint.
+Within the minimax decision we measure the time taken for each iteration and predict the length of the next (and whether it fits into the allocation)
+using the O(sqrt(B)) complexity of Alpha-Beta MiniMax. Additionally to save time we have put in the condition to not bother with later iterations
+if we complete up to depth 3 returning the exact same action every time. Actions in the placing phase are allocated extra time as the placing phase
+sets up the player for the win.
+
+Using this strategy we generally at a minimum achieve depth 3 iterations, with depth 4 for particular parts of the place phase and 4+ in stages of
+the moving phase when there are few actions available.
